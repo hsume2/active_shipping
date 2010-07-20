@@ -128,7 +128,7 @@ module ActiveMerchant
           root_node << XmlNode.new('VariableOptions', 'SATURDAY_DELIVERY')
 
           root_node << XmlNode.new('RequestedShipment') do |rs|
-            rs << XmlNode.new('ShipTimestamp', Time.now)
+            rs << XmlNode.new('ShipTimestamp', options[:ship_timestamp] || Time.now)
             rs << XmlNode.new('DropoffType', options[:dropoff_type] || 'REGULAR_PICKUP')
             rs << XmlNode.new('PackagingType', options[:packaging_type] || 'YOUR_PACKAGING')
 
