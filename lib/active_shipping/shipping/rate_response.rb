@@ -10,16 +10,8 @@ module ActiveMerchant #:nodoc:
         super
       end
       
-      def rates
-        @rates.select { |rate| rate.rate_type ? !rate.rate_type.include?("LIST") : true }
-      end
-      
       alias_method :estimates, :rates
       alias_method :rate_estimates, :rates
-      
-      def list_rates
-        @rates.select { |rate| rate.rate_type && rate.rate_type.include?("LIST") }
-      end
       
     end
     
