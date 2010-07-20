@@ -11,6 +11,7 @@ module ActiveMerchant #:nodoc:
       attr_reader :currency       # 'USD', 'CAD', etc.
                                   # http://en.wikipedia.org/wiki/ISO_4217
       attr_reader :delivery_date  # Usually only available for express shipments
+      attr_reader :transit_time
 
       attr_reader :total_billing_weight
       attr_reader :total_base_charge
@@ -30,9 +31,10 @@ module ActiveMerchant #:nodoc:
         else
           @package_rates = Array(options[:packages]).map {|p| {:package => p}}
         end
-        @total_price = Package.cents_from(options[:total_price])
-        @currency = options[:currency]
-        @delivery_date = options[:delivery_date]
+        @total_price             = Package.cents_from(options[:total_price])
+        @currency                = options[:currency]
+        @delivery_date           = options[:delivery_date]
+        @transit_time            = options[:transit_time]
 
         @total_billing_weight    = Package.cents_from(options[:total_billing_weight])
         @total_base_charge       = Package.cents_from(options[:total_base_charge])
