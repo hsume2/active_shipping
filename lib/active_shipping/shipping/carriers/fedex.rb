@@ -235,11 +235,13 @@ module ActiveMerchant
           service_code = rated_reply_details.get_text('ServiceType').to_s
           is_saturday_delivery = rated_reply_details.get_text('AppliedOptions').to_s == 'SATURDAY_DELIVERY'
           service_type = is_saturday_delivery ? "#{rated_reply_details.get_text('ServiceType').to_s}_SATURDAY_DELIVERY" : rated_reply_details.get_text('ServiceType').to_s
+          delivery_date = rated_reply_details.get_text('DeliveryTimestamp')
+          delivery_date = delivery_date ? delivery_date.to_s : rated_reply_details.get_text('TransitTime').to_s
 
           rated_packages = []
           rated_reply_details.elements.each('RatedShipmentDetails/RatedPackages') do |rated_package|
             # rated_package = Zenship::Fedex::RatePackage.parse(rated_package.to_s, :single => true)
-            # rated_packages << rated_package            
+            # rated_packages << rated_package
           end
 
           rate_estimates << RateEstimate.new(origin, destination, @@name,
@@ -257,7 +259,7 @@ module ActiveMerchant
                               :currency                => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalNetCharge/Currency').to_s,
                               :packages                => packages,
                               :package_estimates       => rated_packages,
-                              :delivery_date           => rated_reply_details.get_text('DeliveryTimestamp').to_s || rated_reply_details.get_text('TransitTime').to_s)
+                              :delivery_date           => delivery_date)
 	      end
 
         if rate_estimates.empty?
