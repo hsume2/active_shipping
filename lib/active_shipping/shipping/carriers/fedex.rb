@@ -257,7 +257,7 @@ module ActiveMerchant
                               :currency                => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalNetCharge/Currency').to_s,
                               :packages                => packages,
                               :package_estimates       => rated_packages,
-                              :delivery_date           => rated_reply_details.get_text('DeliveryTimestamp').to_s)
+                              :delivery_date           => rated_reply_details.get_text('DeliveryTimestamp').to_s || rated_reply_details.get_text('TransitTime').to_s)
 	      end
 
         if rate_estimates.empty?
