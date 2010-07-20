@@ -95,7 +95,7 @@ module ActiveMerchant
         rate_request = build_rate_request(origin, destination, packages, options)
 
         response = commit(save_request(rate_request), (options[:test] || false)).gsub(/<(\/)?.*?\:(.*?)>/, '<\1\2>')
-        
+
         parse_rate_response(origin, destination, packages, response, options)
       end
 
@@ -128,7 +128,7 @@ module ActiveMerchant
           root_node << XmlNode.new('VariableOptions', 'SATURDAY_DELIVERY')
 
           root_node << XmlNode.new('RequestedShipment') do |rs|
-            rs << XmlNode.new('ShipTimestamp', options[:ship_timestamp] || Time.now)
+            rs << XmlNode.new('ShipTimestamp', Time.now)
             rs << XmlNode.new('DropoffType', options[:dropoff_type] || 'REGULAR_PICKUP')
             rs << XmlNode.new('PackagingType', options[:packaging_type] || 'YOUR_PACKAGING')
 
@@ -138,7 +138,7 @@ module ActiveMerchant
               rs << build_location_node('Origin', origin)
             end
 
-            rs << XmlNode.new('RateRequestTypes', options[:list] ? 'LIST' : 'ACCOUNT')
+            rs << XmlNode.new('RateRequestTypes', 'ACCOUNT')
             rs << XmlNode.new('PackageCount', packages.size)
             rs << XmlNode.new('PackageDetail', options[:package_detail] || 'INDIVIDUAL_PACKAGES')
             packages.each do |pkg|
@@ -224,7 +224,7 @@ module ActiveMerchant
       def parse_rate_response(origin, destination, packages, response, options)
         rate_estimates = []
         success, message = nil
-        #File.open("fedex-#{Time.now.to_i}.xml", 'w') { |f| f.write response.to_s }
+
         xml = REXML::Document.new(response)
         root_node = xml.elements['RateReply']
 
@@ -234,49 +234,31 @@ module ActiveMerchant
         root_node.elements.each('RateReplyDetails') do |rated_reply_details|
           service_code = rated_reply_details.get_text('ServiceType').to_s
           is_saturday_delivery = rated_reply_details.get_text('AppliedOptions').to_s == 'SATURDAY_DELIVERY'
-          # service_type = is_saturday_delivery ? "#{service_code}_SATURDAY_DELIVERY" : service_code
           service_type = is_saturday_delivery ? "#{rated_reply_details.get_text('ServiceType').to_s}_SATURDAY_DELIVERY" : rated_reply_details.get_text('ServiceType').to_s
-          
-          if service_type == 'FEDEX_GROUND'
-            delivery_date = rated_reply_details.get_text('TransitTime').to_s
-            case delivery_date
-            when 'ONE_DAYS' then delivery_date = 'One'
-            when 'TWO_DAYS' then delivery_date = 'Two'
-            when 'THREE_DAYS' then delivery_date = 'Three'
-            when 'FOUR_DAYS' then delivery_date = 'Four'
-            when 'FIVE_DAYS' then delivery_date = 'Five'
-            when 'SIX_DAYS' then delivery_date = 'Six'
-            else delivery_date = 'More than seven'
-            end
-            delivery_date = delivery_date << " FedEx business days."
-          else
-            delivery_date = rated_reply_details.get_text('DeliveryTimestamp').to_s
-            delivery_date = Time.parse(delivery_date) if delivery_date
-		      end
-		      
-          rated_reply_details.elements.each('RatedShipmentDetails') do |rated_shipment_details|
-            net_charge = rated_shipment_details.get_text('ShipmentRateDetail/TotalNetCharge/Amount').to_s.to_f
-            
-            if @options[:discount]
-              base_charge = rated_shipment_details.get_text('ShipmentRateDetail/TotalBaseCharge/Amount').to_s.to_f
-              surcharges = rated_shipment_details.get_text('ShipmentRateDetail/TotalSurcharges/Amount').to_s.to_f
-              discounted_base_charge = base_charge * (1.0 - @options[:discount])
-              net_base_charge = ((discounted_base_charge + surcharges) * 100).round / 100.0
-              total_price = net_base_charge >= net_charge ? net_base_charge : net_charge
-            else
-              total_price = net_charge
-            end
 
-            rate_estimates << RateEstimate.new(origin, destination, @@name,
-                                ServiceTypes[service_type],
-                                :service_code => service_code,
-                                :total_price => total_price,
-                                :currency => rated_shipment_details.get_text('ShipmentRateDetail/TotalNetCharge/Currency').to_s,
-                                :packages => packages,
-                                :delivery_date => delivery_date,
-                                :rate_type => rated_shipment_details.get_text('ShipmentRateDetail/RateType').to_s)
+          rated_packages = []
+          rated_reply_details.elements.each('RatedShipmentDetails/RatedPackages') do |rated_package|
+            # rated_package = Zenship::Fedex::RatePackage.parse(rated_package.to_s, :single => true)
+            # rated_packages << rated_package            
           end
-        end
+
+          rate_estimates << RateEstimate.new(origin, destination, @@name,
+                              ServiceTypes[service_type],
+                              :service_code            => service_code,
+                              :total_billing_weight    => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalBillingWeight/Amount').to_s.to_f,
+                              :total_base_charge       => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalBaseCharge/Amount').to_s.to_f,
+                              :total_freight_discounts => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalFreightDiscounts/Amount').to_s.to_f,
+                              :total_net_freight       => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalNetFreight/Amount').to_s.to_f,
+                              :total_surcharges        => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalSurcharges/Amount').to_s.to_f,
+                              :total_net_fedex_charge  => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalNetFedExCharge/Amount').to_s.to_f,
+                              :total_taxes             => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalTaxes/Amount').to_s.to_f,
+                              :total_price             => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalNetCharge/Amount').to_s.to_f,
+                              :total_rebates           => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalRebates/Amount').to_s.to_f,
+                              :currency                => rated_reply_details.get_text('RatedShipmentDetails/ShipmentRateDetail/TotalNetCharge/Currency').to_s,
+                              :packages                => packages,
+                              :package_estimates       => rated_packages,
+                              :delivery_date           => rated_reply_details.get_text('DeliveryTimestamp').to_s)
+	      end
 
         if rate_estimates.empty?
           success = false
